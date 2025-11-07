@@ -5,7 +5,6 @@ import java.util.logging.Logger;
 
 import io.vertx.core.Future;
 import io.vertx.core.VerticleBase;
-import io.vertx.core.eventbus.EventBus;
 import io.vertx.core.http.HttpMethod;
 import io.vertx.core.http.HttpServer;
 import io.vertx.core.http.HttpServerResponse;
@@ -16,9 +15,7 @@ import ttt_api_gateway.application.*;
 
 /**
 *
-* Game Server controller
-* 
-* - exposing a REST API
+* API Gateway Controller
 * 
 */
 public class APIGatewayController extends VerticleBase  {
@@ -43,6 +40,8 @@ public class APIGatewayController extends VerticleBase  {
 	static final String GAME_RESOURCE_PATH =  GAMES_RESOURCE_PATH +   "/:gameId";
 	static final String PLAYER_MOVE_RESOURCE_PATH = GAME_RESOURCE_PATH + "/:playerSessionId/move";
 	static final String WS_EVENT_CHANNEL_PATH = "/api/" + API_VERSION + "/events";
+	
+	/* proxies to interact with the services */
 	
 	private GameService gameService;
 	private AccountService accountService;
@@ -73,7 +72,7 @@ public class APIGatewayController extends VerticleBase  {
 		
 		router.route(HttpMethod.GET, GAME_RESOURCE_PATH).handler(this::getGameInfo);
 		router.route(HttpMethod.POST, PLAYER_MOVE_RESOURCE_PATH).handler(this::makeAMove);
-		// handleEventSubscription(server, WS_EVENT_CHANNEL_PATH);
+		handleEventSubscription(server, WS_EVENT_CHANNEL_PATH);
 
 		/* static files */
 		
@@ -110,6 +109,11 @@ public class APIGatewayController extends VerticleBase  {
 			var password = userInfo.getString("password");
 
 			var reply = new JsonObject();
+			
+			/* 
+			 * we cannot block the event loop, so - since proxies are synchronous,
+			 * we need to delegate the call to a background thread
+			 */
 			this.vertx.executeBlocking(() -> {
 				return  accountService.registerUser(userName, password);	
 			}).onSuccess((ref) -> {
@@ -342,8 +346,13 @@ public class APIGatewayController extends VerticleBase  {
 		});
 	}
 
-	/* Handling subscribers using web sockets */
-	/*
+	/**
+	 * 
+	 * Handling subscribers using web sockets
+	 * 
+	 * @param server
+	 * @param path
+	 */
 	protected void handleEventSubscription(HttpServer server, String path) {
 		server.webSocketHandler(webSocket -> {
 			logger.log(Level.INFO, "New TTT subscription accepted.");
@@ -353,22 +362,20 @@ public class APIGatewayController extends VerticleBase  {
 				JsonObject obj = new JsonObject(openMsg);
 				String playerSessionId = obj.getString("playerSessionId");
 				
+				/* create a channel to make the bridge */
 				
-				EventBus eb = vertx.eventBus();
+				var eb = vertx.eventBus();
 				
+				gameService.createAnEventChannel(playerSessionId, vertx);
+
 				eb.consumer(playerSessionId, msg -> {
-					JsonObject ev = (JsonObject) msg.body();
-					logger.log(Level.INFO, "Event: " + ev.encodePrettily());
-					webSocket.writeTextMessage(ev.encodePrettily());
+					/* bridge between web sockets */
+					webSocket.writeTextMessage(msg.body().toString());
 				});
-				
-				var ps = gameService.getPlayerSession(playerSessionId);
-				var en = ps.getPlayerSessionEventNotifier();
-				en.enableEventNotification(playerSessionId);
-								
+						
 			});
 		});
-	}*/
+	}
 	
 	/* Aux methods */
 	

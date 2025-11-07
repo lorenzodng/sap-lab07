@@ -4,17 +4,34 @@ import java.net.http.HttpResponse;
 import java.util.ArrayList;
 import java.util.List;
 
+import common.exagonal.Adapter;
+import io.vertx.core.Vertx;
+import io.vertx.core.http.WebSocketClient;
 import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
 import ttt_api_gateway.application.*;
 import ttt_api_gateway.domain.Game;
 
+/**
+ * 
+ * Proxy for GameService, using sync HTTP
+ * 
+ */
+@Adapter
 public class GameServiceProxy extends HTTPSyncBaseProxy implements GameService  {
 
 	private String serviceAddress;
+	private int wsPort;
+	private String wsAddress;
 
 	public GameServiceProxy(String serviceAPIEndpoint) {
 		this.serviceAddress = serviceAPIEndpoint;
+	}
+
+	public GameServiceProxy(String serviceAPIEndpoint, String wsAddress, int wsPort) {
+		this.serviceAddress = serviceAPIEndpoint;
+		this.wsPort = wsPort;
+		this.wsAddress = wsAddress;
 	}
 
 	@Override
@@ -53,6 +70,31 @@ public class GameServiceProxy extends HTTPSyncBaseProxy implements GameService  
 		} catch (Exception ex) {
 			throw new ServiceNotAvailableException();
 		}
+	}
+	
+	
+	@Override
+	public void createAnEventChannel(String playerSessionId, Vertx vertx) {		
+		var eb = vertx.eventBus();
+		WebSocketClient client = vertx.createWebSocketClient();
+		client
+		  .connect(wsPort, wsAddress, "/api/v1/events")
+		  .onSuccess(ws -> {
+			  System.out.println("Connected!");
+
+			  ws.textMessageHandler(msg -> {
+				  eb.publish(playerSessionId, msg); 
+			  });
+			  
+			  /* first message */
+		      
+		      JsonObject obj = new JsonObject();
+		      obj.put("playerSessionId", playerSessionId);		      
+		      ws.writeTextMessage(obj.toString());
+		  })
+		  .onFailure(err -> {
+			  eb.publish(playerSessionId, "error");
+		  });
 	}
 
 	

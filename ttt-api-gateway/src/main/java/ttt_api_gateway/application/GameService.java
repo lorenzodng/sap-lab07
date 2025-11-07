@@ -1,14 +1,15 @@
 package ttt_api_gateway.application;
 
-import common.exagonal.InBoundPort;
+import common.exagonal.OutBoundPort;
+import io.vertx.core.Vertx;
 import ttt_api_gateway.domain.*;
 
 /**
  * 
- * Interface of the Game Service at the application layer
+ * Interface for interacting with the Game Service
  * 
  */
-@InBoundPort
+@OutBoundPort
 public interface GameService  {
 
 
@@ -32,6 +33,15 @@ public interface GameService  {
 	 */
 	void makeAMove(String gameId, String playerSessionId, int x, int y) throws InvalidMoveException, ServiceNotAvailableException;
 
+
+	/**
+	 * 
+	 * Create an event channel to receive game events, asynchronously 
+	 * 
+	 * @param playerSessionId
+	 * @param vertx
+	 */
+	void createAnEventChannel(String playerSessionId, Vertx vertx);		
 
     
 }

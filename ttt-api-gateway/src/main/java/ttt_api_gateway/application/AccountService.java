@@ -1,15 +1,16 @@
 package ttt_api_gateway.application;
 
 import common.exagonal.InBoundPort;
+import common.exagonal.OutBoundPort;
 import ttt_api_gateway.domain.Account;
 import ttt_api_gateway.domain.AccountRef;
 
 /**
  * 
- * Interface of the Game Service at the application layer
+ * Interface for interacting with the AccountService
  * 
  */
-@InBoundPort
+@OutBoundPort
 public interface AccountService  {
 
 	/**

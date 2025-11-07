@@ -32,6 +32,7 @@ public class GameServiceController extends VerticleBase  {
 	static final String GAME_RESOURCE_PATH =  GAMES_RESOURCE_PATH +   "/:gameId";
 	static final String JOIN_GAME_RESOURCE_PATH = GAME_RESOURCE_PATH + "/join";
 	static final String PLAYER_MOVE_RESOURCE_PATH = GAME_RESOURCE_PATH + "/:playerSessionId/move";
+	static final String GAME_EVENT_CHANNEL_PATH = "/api/" + API_VERSION +"/events"; 
 	
 	/* Ref. to the application layer */
 	private GameService gameService;
@@ -52,7 +53,7 @@ public class GameServiceController extends VerticleBase  {
 		router.route(HttpMethod.GET, GAME_RESOURCE_PATH).handler(this::getGameInfo);
 		router.route(HttpMethod.POST, JOIN_GAME_RESOURCE_PATH).handler(this::joinGame);
 		router.route(HttpMethod.POST, PLAYER_MOVE_RESOURCE_PATH).handler(this::makeAMove);
-		this.handleEventSubscription(server, "/api/events");
+		this.handleEventSubscription(server, GAME_EVENT_CHANNEL_PATH);
 
 		/* static files */
 		

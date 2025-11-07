@@ -10,6 +10,9 @@ import ttt_api_gateway.application.ServiceNotAvailableException;
 import ttt_api_gateway.domain.Account;
 import ttt_api_gateway.domain.AccountRef;
 
+/**
+ * Proxy for AccountService, using synch HTTP 
+ */
 @Adapter
 public class AccountServiceProxy extends HTTPSyncBaseProxy implements AccountService {
 

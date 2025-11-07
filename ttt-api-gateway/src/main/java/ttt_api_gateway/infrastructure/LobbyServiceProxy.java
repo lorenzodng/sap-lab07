@@ -2,6 +2,7 @@ package ttt_api_gateway.infrastructure;
 
 import java.net.http.HttpResponse;
 
+import common.exagonal.Adapter;
 import io.vertx.core.json.JsonObject;
 import ttt_api_gateway.application.CreateGameFailedException;
 import ttt_api_gateway.application.JoinGameFailedException;
@@ -10,6 +11,12 @@ import ttt_api_gateway.application.LoginFailedException;
 import ttt_api_gateway.application.ServiceNotAvailableException;
 import ttt_api_gateway.application.TTTSymbol;
 
+/**
+ * 
+ * Proxy for LobbyService, using synch HTTP 
+ * 
+ */
+@Adapter
 public class LobbyServiceProxy extends HTTPSyncBaseProxy implements LobbyService {
 
 	private String serviceAddress;

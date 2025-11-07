@@ -1,13 +1,10 @@
 package ttt_api_gateway.application;
 
-import common.exagonal.InBoundPort;
-
 /**
  * 
- * Interface of the Game Lobby Service at the application layer
+ * Interface for interacting with the LobbyService 
  * 
  */
-@InBoundPort
 public interface LobbyService  {
 
 	String login(String userName, String password) throws LoginFailedException, ServiceNotAvailableException;
