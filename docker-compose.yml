@@ -1,0 +1,41 @@
+name: ttt-game-server
+
+services:
+  account-service:
+    image: ttt-account-service
+    container_name: account-01
+    networks:
+      - ttt_game_server_network
+    ports:
+      - "9000:9000"
+    expose: 
+      - 9000
+  lobby-service:
+    image: ttt-lobby-service
+    container_name: lobby-01
+    networks:
+      - ttt_game_server_network
+    ports:
+      - "9001:9001"
+    expose: 
+      - 9001
+  game-service:
+    image: ttt-game-service
+    container_name: game-service-01
+    networks:
+      - ttt_game_server_network
+    ports:
+      - "9002:9002"
+    expose: 
+      - 9002
+  api-gateway:
+    image: ttt-api-gateway
+    container_name: api-gateway-01
+    networks:
+      - ttt_game_server_network
+    ports:
+      - "8080:8080"
+    expose: 
+      - 8080
+networks:
+  ttt_game_server_network:

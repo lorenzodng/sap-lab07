@@ -1,0 +1,311 @@
+openapi: 3.0.3
+info:
+  title: "TTT Game Server API"
+  description: |-
+    This is the API of a TTT Game Server
+  contact:
+    email: a.ricci@unibo.it
+  license:
+    name: Apache 2.0
+    url: http://www.apache.org/licenses/LICENSE-2.0.html
+  version: 0.1.0
+servers:
+  - url: https://localhost:8080/api/v1
+tags:
+  - name: account
+    description: User account
+  - name: game
+    description: Ongoing game
+  - name: user-session
+    description: Logged in user session
+    
+paths:
+
+  /accounts:
+    post:
+      tags:
+        - account
+      description: Create a new acccount
+      operationId: createNewAccount
+      parameters:
+        - name: userName
+          in: query
+          description: user name
+          required: true
+          schema:
+            type: string
+        - name: password
+          in: query
+          description: user password
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: account succesfully created
+          content:
+            application/json:       
+              schema:
+                type: object
+                properties:
+                  loginLink:
+                    description: link to do login 
+                    type: string
+                  accountLink:
+                    description: link to the account resource
+                    type: string
+                    
+  /accounts/{accountId}:
+     get:
+      tags:
+        - account
+      description: Create a new acccount
+      operationId: getAccountInfo
+      parameters:
+        - name: accountId
+          in: path
+          description: ID of account to return
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: successful operation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Account'
+                
+  /accounts/{accountId}/login:
+    post:
+      tags:
+        - account
+      description: User login
+      operationId: login
+      parameters:
+        - name: accountId
+          in: path
+          description: ID of the account to return
+          required: true
+          schema:
+            type: string
+        - name: userName
+          in: query
+          description: user name
+          required: true
+          schema:
+            type: string
+        - name: password
+          in: query
+          description: user password
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: user succesfully logged in
+          content:
+            application/json:       
+              schema:
+                type: object
+                properties:
+                  sessionId:
+                    description: user session id 
+                    type: string
+                  sessionLink:
+                    description: link to user session resource 
+                    type: string
+                  createGameLink:
+                    description: link to create a new game
+                    type: string
+                  joinGameLink:
+                    description: link to join a game 
+                    type: string
+                    
+  /games/{gameId}:
+     get:
+      tags:
+        - game
+      description: Get game info
+      operationId: getGameInfo
+      parameters:
+        - name: gameId
+          in: path
+          description: ID of the game to return
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: successful operation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Game'
+                
+  /user-sessions/{sessionId}/create-game:
+    post:
+      tags:
+        - user-session
+      description: A logged in user creates a new game
+      operationId: createNewGame
+      parameters:
+        - name: sessionId
+          in: path
+          description: ID of the user session
+          required: true
+          schema:
+            type: string
+        - name: gameId
+          in: query
+          description: unique identifier of the game to create
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: game succesfully created
+          content:
+            application/json:       
+              schema:
+                type: object
+                properties:
+                  gameLink:
+                    description: link to the game resource 
+                    type: string
+                  joinGameLink:
+                    description: link to join the game 
+                    type: string
+          
+  /user-sessions/{sessionId}/join-game:
+    post:
+      tags:
+        - user-session
+      description: A logged in user joins a game
+      operationId: joinGame
+      parameters:
+        - name: sessionId
+          in: path
+          description: ID of the user session
+          required: true
+          schema:
+            type: string
+        - name: gameId
+          in: query
+          description: unique identifier of the game to join
+          required: true
+          schema:
+            type: string
+        - name: symbol
+          in: query
+          description: symbol used by the user 
+          required: true
+          schema:
+            type: string
+            enum:
+            - X
+            - O
+      responses:
+        '200':
+          description: game succesfully joined
+          content:
+            application/json:       
+              schema:
+                type: object
+                properties:
+                  playerSessionId:
+                    description: player session identifier
+                    type: string
+                  playerSessionLink:
+                    description: link to the player session resource
+                    type: string
+                  gameLink:
+                    description: link to the game resource 
+                    type: string
+                  moveLink:
+                    description: link to make a move in the game 
+                    type: string
+
+  /games/{gameId}/{playerSessionId}/move:
+    post:
+      tags:
+        - game
+      description: A player makes a move
+      operationId: makeAMove
+      parameters:
+        - name: gameId
+          in: path
+          description: ID of the game
+          required: true
+          schema:
+            type: string
+        - name: playerSessionId
+          in: path
+          description: ID of the player session
+          required: true
+          schema:
+            type: string
+        - name: x
+          in: query
+          description: x coordinate of the move on the board
+          required: true
+          schema:
+            type: integer
+        - name: y
+          in: query
+          description: y coordinate of the move on the board
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: move accepted
+          content:
+            application/json:       
+              schema:
+                type: object
+                properties:
+                  gameLink:
+                    description: link to the game resource 
+                    type: string
+                  moveLink:
+                    description: link to make a move in the game 
+                    type: string
+
+components:
+  schemas:
+    Account:
+      type: object
+      properties:
+        userName:
+          type: string
+          description: user name, univocally defined
+        password:
+          type: string
+          description: password of the user
+        whenCreated:
+          type: integer
+          description: creation date/time (in millis)
+          format: int64
+    Game:
+      type: object
+      properties:
+        gameId:
+          type: string
+          description: game name (unique)
+        gameState:
+          type: string
+          description: state of the game
+          enum:
+          - waiting_for_players
+          - started
+          - finished
+        boardState:
+          type: array 
+          description: board current state
+          items:
+            type: string
+            enum:
+            - X
+            - O
+            - -
