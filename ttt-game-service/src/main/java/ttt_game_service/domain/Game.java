@@ -5,213 +5,145 @@ import java.util.List;
 import java.util.Optional;
 import java.util.logging.Level;
 import java.util.logging.Logger;
-
 import common.ddd.Aggregate;
 
-
-/**
- * 
- * Modelling a running game.
- * 
- */
+//partita in corso
 public class Game implements Aggregate<String>{
-	static Logger logger = Logger.getLogger("[Game]");
 
-	private String id;
-	private GameBoard board;
+    static Logger logger = Logger.getLogger("[Game]");
+    private String id; //id della partita
+    private GameBoard board; //griglia della partita
+    public enum GameState {WAITING_FOR_PLAYERS, STARTED, FINISHED} //enum per lo stato della partita
+    private GameState state; //stato della partita
+    private Optional<UserId> playerCross; //id del giocatore X
+    private Optional<UserId> playerCircle; //id del giocatore O
+    private Optional<UserId> winner; //vincitore
+    private Optional<UserId> currentTurn; //turno corrente
+    private List<GameObserver> observers; //lista degli osservatori (utenti) della partita
 
-	public enum GameState { WAITING_FOR_PLAYERS, STARTED, FINISHED }
-	private GameState state;
-	
-	private Optional<UserId> playerCross;  /* joined player with cross */
-	private Optional<UserId> playerCircle; /* joined player with circle */
-	private Optional<UserId> winner;		
-	private Optional<UserId> currentTurn;
-	
-	private List<GameObserver> observers; /* observers of game events */
-	
-	public Game(String id) {
-		this.id = id;
-		board = new GameBoard(id+"-board");
+    public Game(String id) {
+        this.id = id;
+        board = new GameBoard(id+"-board");
+        playerCross = Optional.empty();
+        playerCircle = Optional.empty();
+        currentTurn = Optional.empty();
+        winner = Optional.empty();
+        state = GameState.WAITING_FOR_PLAYERS; //inizializza lo stato della partita come "in attesa"
+        observers = new ArrayList<>();
+    }
 
-		playerCross = Optional.empty();
-		playerCircle = Optional.empty();
-		currentTurn = Optional.empty();		
-		winner = Optional.empty();
-		state = GameState.WAITING_FOR_PLAYERS;
-		observers = new ArrayList<>();		
-	}	
-	
-	public String getId() {
-		return id;
-	}
-		
-	/**
-	 * 
-	 * A player joins a game
-	 * 
-	 * @param user
-	 * @param symbol
-	 * @throws InvalidJoinException
-	 */
-	public void joinGame(UserId userId, TTTSymbol symbol) throws InvalidJoinException {
-		if (!state.equals(GameState.WAITING_FOR_PLAYERS) || 
-		    (symbol.equals(TTTSymbol.X) && playerCross.isPresent()) ||
-			(symbol.equals(TTTSymbol.O) && playerCircle.isPresent())) {
-			throw new InvalidJoinException();
-		} 
-		
-		if (symbol.equals(TTTSymbol.X)) {
-			playerCross = Optional.of(userId);
-		} else {
-			playerCircle = Optional.of(userId);
-		}
-	}
-	
-	
-	/**
-	 * 
-	 * Starts the game.
-	 * 
-	 * The game is started after that both players joined the game.
-	 * 
-	 */
-	public void startGame() {
-		state = GameState.STARTED;
-		currentTurn = playerCross;
-		notifyGameEvent(new GameStarted(id));				
-	}
-	
-	/**
-	 * Get the board state
-	 * 
-	 * @return
-	 */
-	public List<String> getBoardState(){
-		return this.board.getState();
-	}
-	
-	/**
-	 * 
-	 * Get current turn
-	 * 
-	 * @return
-	 */
-	public String getCurrentTurn() {
-		if (currentTurn == playerCross) {
-			return "X";
-		} else {
-			return "O";
-		}
-	}
+    //restituisce l'id della partita
+    public String getId() {
+        return id;
+    }
 
-	/**
-	 * 
-	 * Check if the game has started
-	 * 
-	 * @return
-	 */
-	public boolean isStarted() {
-		return state.equals(GameState.STARTED);
-	}
+    //fa entrare un utente nella partita
+    public void joinGame(UserId userId, TTTSymbol symbol) throws InvalidJoinException {
+        if (!state.equals(GameState.WAITING_FOR_PLAYERS) || (symbol.equals(TTTSymbol.X) && playerCross.isPresent()) || (symbol.equals(TTTSymbol.O) && playerCircle.isPresent())) { //se la partita non è "in attesa" o se l'utente sceglie "croce" e il simbolo è già stato selezionato, se l'utente sceglie "cerchio" e il simbolo è già stato selezionato
+            throw new InvalidJoinException(); //lancia un'eccezione
+        }
 
-	/**
-	 * 
-	 * Check if the game is ended
-	 * 
-	 * @return
-	 */
-	public boolean isFinished() {
-		return state.equals(GameState.FINISHED);
-	}
-	
-	/**
-	 * Get the game state
-	 * 
-	 * @return
-	 */
-	public String getGameState() {
-		if (state.equals(GameState.WAITING_FOR_PLAYERS)) {
-			return "waiting-for-players";
-		} else if (state.equals(GameState.STARTED)) {
-			return "started";
-		} else if (state.equals(GameState.FINISHED)) {
-			return "finished";
-		} else {
-			return "unknown";
-		}
-	}
-	
-	/**
-	 * 
-	 * Checks if the game can start.
-	 * 
-	 * @return
-	 */
-	public boolean isReadyToStart() {
-		return (playerCross.isPresent() && playerCircle.isPresent());
-	}
-	
-	
-	/**
-	 * 
-	 * A player makes a move
-	 * 
-	 * @param UserId
-	 * @param symbol
-	 * @param x
-	 * @param y
-	 * @throws InvalidMoveException
-	 */
-	public void makeAmove(UserId userId, int x, int y) throws InvalidMoveException {
-		logger.log(Level.INFO, "new move by " + userId.id() + " in (" + x + ", " + y + ")");
-		UserId p = currentTurn.get();
-		if (userId.id().equals(p.id())) {
-			
-			var gridSymbol = userId.id().equals(playerCross.get().id()) ?
-						TTTSymbol.X : TTTSymbol.O;
-			
-			board.newMove(gridSymbol, x, y);
-			notifyGameEvent(new NewMove(id, gridSymbol.toString(), x, y));				
+        //(altrimenti)
 
-			/* check state */ 
-			
-			currentTurn = (currentTurn == playerCross) ? playerCircle : playerCross;
-			var optWin = board.checkWinner();
-			if (optWin.isPresent()) {
-				winner = Optional.of(getPlayerUsingSymbol(optWin.get()));
-				state = GameState.FINISHED;
-				notifyGameEvent(new GameEnded(id, Optional.of(winner.get().id())));				
-			} else if (board.isTie()) {
-				state = GameState.FINISHED;
-				notifyGameEvent(new GameEnded(id, Optional.empty()));				
-			}				
-		} else {
-			throw new InvalidMoveException();			
-		}
-	}
-	
-	/**
-	 * 
-	 * Adding an observer to notify game events
-	 * 
-	 * @param observer
-	 */
-	public void addGameObserver(GameObserver observer) {
-		observers.add(observer);
-	}
-	
-	private void notifyGameEvent(GameEvent ev) {
-		for (var o: observers) {
-			o.notifyGameEvent(ev);				
-		}
-	}
-		
-	private UserId getPlayerUsingSymbol(TTTSymbol symbol) {
-		if (symbol.equals(TTTSymbol.X)) {
-			return playerCross.get();
-		} else {
-			return playerCircle.get();
-		}
-	}
+        if (symbol.equals(TTTSymbol.X)) { //se l'utente sceglie "croce"
+            playerCross = Optional.of(userId); //assegna al giocatore il simbolo "croce"
+        } else { //altrimenti
+            playerCircle = Optional.of(userId); //assegna al giocatore il simbolo "cerchio"
+        }
+    }
+
+    //avvia la partita
+    public void startGame() {
+        state = GameState.STARTED; //imposta lo stato della partita come "avviata"
+        currentTurn = playerCross; //inizializza il turno al giocatore "croce"
+        notifyGameEvent(new GameStarted(id));  //invia un evento di avvio della partita a tutti gli osservatori (giocatori) registrati alla partita
+    }
+
+    //recupera lo stato della griglia
+    public List<String> getBoardState(){
+        return this.board.getState();
+    }
+
+    //recupera il turno corrente
+    public String getCurrentTurn() {
+        if (currentTurn == playerCross) {
+            return "X";
+        } else {
+            return "O";
+        }
+    }
+
+    //verifica se la partita è iniziata
+    public boolean isStarted() {
+        return state.equals(GameState.STARTED);
+    }
+
+    //verifica se la partita è terminata
+    public boolean isFinished() {
+        return state.equals(GameState.FINISHED);
+    }
+
+    //recupera lo stato della partita
+    public String getGameState() {
+        if (state.equals(GameState.WAITING_FOR_PLAYERS)) {
+            return "waiting-for-players";
+        } else if (state.equals(GameState.STARTED)) {
+            return "started";
+        } else if (state.equals(GameState.FINISHED)) {
+            return "finished";
+        } else {
+            return "unknown";
+        }
+    }
+
+    //verifica se la partita può iniziare
+    public boolean isReadyToStart() {
+        return (playerCross.isPresent() && playerCircle.isPresent());
+    }
+
+    //esegue una mossa
+    public void makeAmove(UserId userId, int x, int y) throws InvalidMoveException {
+        logger.log(Level.INFO, "new move by " + userId.id() + " in (" + x + ", " + y + ")");
+        UserId p = currentTurn.get(); //recupera il turno corrente
+        if (userId.id().equals(p.id())) { //se l'utente (che chiama il metodo) è il giocatore associato al turno corrente
+            var gridSymbol = userId.id().equals(playerCross.get().id()) ? TTTSymbol.X : TTTSymbol.O; //se il giocatore ha simbolo "croce", memorizza il simbolo croce, altrimenti memorizza il simbolo "cerchio"
+            board.newMove(gridSymbol, x, y); //esegue la mossa
+            notifyGameEvent(new NewMove(id, gridSymbol.toString(), x, y)); //invia un evento di esecuzione della mossa a tutti gli osservatori (giocatori) registrati alla partita
+
+            currentTurn = (currentTurn == playerCross) ? playerCircle : playerCross; //cambia il turno
+            var optWin = board.checkWinner(); //verifica la presenza di un vincitore
+            if (optWin.isPresent()) { //se è presente un vincitore
+                winner = Optional.of(getPlayerUsingSymbol(optWin.get())); //recupera il vincitore
+                state = GameState.FINISHED; //imposta lo stato della partita come "terminato"
+                notifyGameEvent(new GameEnded(id, Optional.of(winner.get().id())));
+            } else if (board.isTie()) { //se è finita in parità
+                state = GameState.FINISHED; //imposta lo stato della partita come "terminato"
+                notifyGameEvent(new GameEnded(id, Optional.empty())); //invia un evento di terminazione della partita a tutti gli osservatori (giocatori) registrati alla partita
+            }
+        } else { //altrimenti
+            throw new InvalidMoveException(); //lancia un'eccezione
+        }
+    }
+
+    //aggiunge un osservatore alla partita
+    public void addGameObserver(GameObserver observer) {
+        observers.add(observer);
+    }
+
+    //invia un evento di notifica agli osservatori
+    private void notifyGameEvent(GameEvent ev) {
+        for (var o: observers) { //per ogni elemento nella lista degli osservatori
+            o.notifyGameEvent(ev); //notifica l'osservatore
+        }
+    }
+
+    //recupera l'utente dal suo simbolo
+    private UserId getPlayerUsingSymbol(TTTSymbol symbol) {
+        if (symbol.equals(TTTSymbol.X)) { //se il simbolo è "croce"
+            return playerCross.get(); //restituisce l'id del giocatore croce
+        } else { //altrimenti
+            return playerCircle.get(); //restituisce l'id del giocatore "cerchio"
+        }
+    }
 }
+

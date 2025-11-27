@@ -4,44 +4,17 @@ import common.exagonal.OutBoundPort;
 import io.vertx.core.Vertx;
 import ttt_api_gateway.domain.*;
 
-/**
- * 
- * Interface for interacting with the Game Service
- * 
- */
+//interfaccia che contiene tutti i metodi che l'api gateway può richiamare per interagire il servizio di gioco
 @OutBoundPort
-public interface GameService  {
+public interface GameService {
 
+    //recupera le informazioni di una partita
+    Game getGameInfo(String gameId) throws GameNotFoundException, ServiceNotAvailableException;
 
-	/**
-     * 
-     * Get game info.
-     * 
-     * @param gameId
-     * @return
-     * @throws AccountNotFoundException
-     */
-	Game getGameInfo(String gameId) throws GameNotFoundException, ServiceNotAvailableException;
-		
-	/**
-	 * Make a new move
-	 * 
-	 * @param gameId
-	 * @param playerSessionId
-	 * @param x
-	 * @param y
-	 */
-	void makeAMove(String gameId, String playerSessionId, int x, int y) throws InvalidMoveException, ServiceNotAvailableException;
+    //esegue una mossa
+    void makeAMove(String gameId, String playerSessionId, int x, int y) throws InvalidMoveException, ServiceNotAvailableException;
 
+    //crea una canale per ricevere gli eventi di gioco
+    void createAnEventChannel(String playerSessionId, Vertx vertx);
 
-	/**
-	 * 
-	 * Create an event channel to receive game events, asynchronously 
-	 * 
-	 * @param playerSessionId
-	 * @param vertx
-	 */
-	void createAnEventChannel(String playerSessionId, Vertx vertx);		
-
-    
 }

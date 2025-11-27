@@ -1,50 +1,16 @@
 package ttt_api_gateway.application;
 
-import common.exagonal.InBoundPort;
 import common.exagonal.OutBoundPort;
 import ttt_api_gateway.domain.Account;
 import ttt_api_gateway.domain.AccountRef;
 
-/**
- * 
- * Interface for interacting with the AccountService
- * 
- */
+//interfaccia che contiene tutti i metodi che l'api gateway può richiamare per interagire il servizio degli account
 @OutBoundPort
 public interface AccountService  {
 
-	/**
-     * 
-     * Register a new user.
-     * 
-     * @param userName
-     * @param password
-     * @return
-     * @throws AccountAlreadyPresentException
-     */
-	AccountRef registerUser(String userName, String password) throws AccountAlreadyPresentException, ServiceNotAvailableException;
+    //registra un utente al servizio
+    AccountRef registerUser(String userName, String password) throws AccountAlreadyPresentException, ServiceNotAvailableException;
 
-	/**
-     * 
-     * Get account info.
-     * 
-     * @param userName
-     * @return
-     * @throws AccountNotFoundException
-     */
-	Account getAccountInfo(String userName) throws AccountNotFoundException, ServiceNotAvailableException;
-		
-	
-	/**
-	 * 
-	 * Check password validity
-	 * 
-	 * @param userName
-	 * @param password
-	 * @return
-	 * @throws AccountNotFoundException
-	 */
-	boolean isValidPassword(String userName, String password) throws AccountNotFoundException, ServiceNotAvailableException;
-
-    
+    //recupera le informazioni di un account
+    Account getAccountInfo(String userName) throws AccountNotFoundException, ServiceNotAvailableException;
 }

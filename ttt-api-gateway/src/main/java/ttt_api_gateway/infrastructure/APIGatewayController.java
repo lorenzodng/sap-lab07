@@ -2,9 +2,9 @@ package ttt_api_gateway.infrastructure;
 
 import java.util.logging.Level;
 import java.util.logging.Logger;
-
 import io.vertx.core.Future;
 import io.vertx.core.VerticleBase;
+import io.vertx.core.eventbus.EventBus;
 import io.vertx.core.http.HttpMethod;
 import io.vertx.core.http.HttpServer;
 import io.vertx.core.http.HttpServerResponse;
@@ -13,383 +13,296 @@ import io.vertx.ext.web.*;
 import io.vertx.ext.web.handler.StaticHandler;
 import ttt_api_gateway.application.*;
 
-/**
-*
-* API Gateway Controller
-* 
-*/
+/*
+controller tra l'api gateway e i proxy
+flusso di chiamate: client -> server api-gateway -> controller -> ...
+ */
 public class APIGatewayController extends VerticleBase  {
 
-	private int port;
-	static Logger logger = Logger.getLogger("[APIGatewayController]");
+	private int port; //porta su cui il server ascolta le richieste http
+    static Logger logger = Logger.getLogger("[APIGatewayController]");
+    static final String API_VERSION = "v1"; //versione dell'API utilizzata per definire le rotte
 
-	/* for account */
-	static final String API_VERSION = "v1";
-	static final String ACCOUNTS_RESOURCE_PATH = "/api/" + API_VERSION + "/accounts";
-	static final String ACCOUNT_RESOURCE_PATH = "/api/" + API_VERSION + "/accounts/:accountId";
-	static final String CHECK_PWD_RESOURCE_PATH = "/api/" + API_VERSION + "/accounts/:accountId/check-pwd";
-	
-	/* for lobby */
-	static final String LOGIN_RESOURCE_PATH = 			"/api/" + API_VERSION + "/lobby/login";
-	static final String USER_SESSIONS_RESOURCE_PATH = 	"/api/" + API_VERSION + "/lobby/user-sessions";
-	static final String CREATE_GAME_RESOURCE_PATH = 	"/api/" + API_VERSION + "/lobby/user-sessions/:sessionId/create-game";
-	static final String JOIN_GAME_RESOURCE_PATH = 		"/api/" + API_VERSION + "/lobby/user-sessions/:sessionId/join-game";
+    //rotte per il servizio di lobby
+    static final String LOGIN_RESOURCE_PATH = 			"/api/" + API_VERSION + "/lobby/login"; //rotta per effettuare il login di un account
+    static final String USER_SESSIONS_RESOURCE_PATH = 	"/api/" + API_VERSION + "/lobby/user-sessions"; //rotta (di base) per le sessioni utente
+    static final String CREATE_GAME_RESOURCE_PATH = 	"/api/" + API_VERSION + "/lobby/user-sessions/:sessionId/create-game"; //rotta per creare una nuova partita
+    static final String JOIN_GAME_RESOURCE_PATH = 		"/api/" + API_VERSION + "/lobby/user-sessions/:sessionId/join-game"; //rotta per far entrare un utente in una partita
 
-	/* for game */
-	static final String GAMES_RESOURCE_PATH = "/api/" + API_VERSION + "/games";
-	static final String GAME_RESOURCE_PATH =  GAMES_RESOURCE_PATH +   "/:gameId";
-	static final String PLAYER_MOVE_RESOURCE_PATH = GAME_RESOURCE_PATH + "/:playerSessionId/move";
-	static final String WS_EVENT_CHANNEL_PATH = "/api/" + API_VERSION + "/events";
-	
-	/* proxies to interact with the services */
-	
-	private GameService gameService;
-	private AccountService accountService;
-	private LobbyService lobbyService;
-	
-	
+	//rotte per il servizio degli account
+	static final String ACCOUNTS_RESOURCE_PATH = "/api/" + API_VERSION + "/accounts"; //rotta per creare un nuovo account
+	static final String ACCOUNT_RESOURCE_PATH = "/api/" + API_VERSION + "/accounts/:accountId"; //rotta per recuperare le informazioni di un account
+
+    //rotte per il servizio di gioco
+	static final String GAMES_RESOURCE_PATH = "/api/" + API_VERSION + "/games"; //rotta (di base) per recuperare le partite
+	static final String GAME_RESOURCE_PATH =  GAMES_RESOURCE_PATH +   "/:gameId"; //rotta per recuperare le informazioni di una partita
+	static final String PLAYER_MOVE_RESOURCE_PATH = GAME_RESOURCE_PATH + "/:playerSessionId/move"; //rotta per eseguire una mossa
+
+    private LobbyService lobbyService; //servizio di lobby
+    private AccountService accountService; //servizio degli account
+    private GameService gameService; //servizio di gioco
+
 	public APIGatewayController(AccountService accountService, LobbyService lobbyService, GameService gameService, int port) {
 		this.port = port;
 		logger.setLevel(Level.INFO);
 		this.gameService = gameService;
 		this.accountService = accountService;
 		this.lobbyService = lobbyService;
-
 	}
 
 	public Future<?> start() {
 		logger.log(Level.INFO, "TTT Game Service initializing...");
-		HttpServer server = vertx.createHttpServer();
+		HttpServer server = vertx.createHttpServer(); //crea un sever http
 
-		/* REST API routes */
-				
-		Router router = Router.router(vertx);
-		router.route(HttpMethod.POST, ACCOUNTS_RESOURCE_PATH).handler(this::createNewAccount);
-		router.route(HttpMethod.GET, ACCOUNT_RESOURCE_PATH).handler(this::getAccountInfo);
-		router.route(HttpMethod.POST, LOGIN_RESOURCE_PATH).handler(this::login);
-		router.route(HttpMethod.POST, CREATE_GAME_RESOURCE_PATH).handler(this::createNewGame);
-		router.route(HttpMethod.POST, JOIN_GAME_RESOURCE_PATH).handler(this::joinGame);
-		
-		router.route(HttpMethod.GET, GAME_RESOURCE_PATH).handler(this::getGameInfo);
-		router.route(HttpMethod.POST, PLAYER_MOVE_RESOURCE_PATH).handler(this::makeAMove);
-		handleEventSubscription(server, WS_EVENT_CHANNEL_PATH);
+		Router router = Router.router(vertx); //router per l'instradamento delle richieste http
+		router.route(HttpMethod.POST, ACCOUNTS_RESOURCE_PATH).handler(this::createNewAccount); //associa alla rotta per creare un nuovo account il relativo metodo
+		router.route(HttpMethod.GET, ACCOUNT_RESOURCE_PATH).handler(this::getAccountInfo); //associa alla rotta per recuperare le informazioni di un account il relativo metodo
+		router.route(HttpMethod.POST, LOGIN_RESOURCE_PATH).handler(this::login); //associa alla rotta per effettuare il login di un account il relativo metodo
+		router.route(HttpMethod.POST, CREATE_GAME_RESOURCE_PATH).handler(this::createNewGame); //associa alla rotta per creare una nuova partita il relativo metodo
+		router.route(HttpMethod.POST, JOIN_GAME_RESOURCE_PATH).handler(this::joinGame); //associa alla rotta per far entrare un utente in una partita il relativo metodo
+		router.route(HttpMethod.GET, GAME_RESOURCE_PATH).handler(this::getGameInfo); //associa alla rotta per recuperare le informazioni di una partita il relativo metodo
+		router.route(HttpMethod.POST, PLAYER_MOVE_RESOURCE_PATH).handler(this::makeAMove); //associa alla rotta per eseguire una mossa il relativo metodo
+		handleEventSubscription(server); //registra un websocket handler al server per ascoltare le richieste del client
 
-		/* static files */
-		
-		router.route("/public/*").handler(StaticHandler.create());
-		
-		/* start the server */
-		
-		var fut = server
-			.requestHandler(router)
-			.listen(port);
-		
-		fut.onSuccess(res -> {
-			logger.log(Level.INFO, "TTT API Gateway ready - port: " + port);
+		router.route("/public/*").handler(StaticHandler.create()); //gestisce le richieste del client che iniziano con "public", relative all'aspetto della pagina web
+
+		var fut = server.requestHandler(router).listen(port); //avvia il server sulla porta specificata
+		fut.onSuccess(res -> { //in caso di avvio con successo
+			logger.log(Level.INFO, "TTT API Gateway ready - port: " + port); //stampa un messaggio di log
 		});
 
-		return fut;
+		return fut; //restituisce la future
 	}
 
-
-	/* List of handlers mapping the API */
-	
-	/**
-	 * 
-	 * Register a new user
-	 * 
-	 * @param context
-	 */
-	protected void createNewAccount(RoutingContext context) {
+    //crea un account utente
+    protected void createNewAccount(RoutingContext context) {
 		logger.log(Level.INFO, "create a new account");
-		context.request().handler(buf -> {
-			JsonObject userInfo = buf.toJsonObject();
+		context.request().handler(buf -> { //prende il body del messaggio http inviato dal client
+            JsonObject userInfo = buf.toJsonObject(); //converte il body in un oggetto json
 			logger.log(Level.INFO, "Payload: " + userInfo);
-			var userName = userInfo.getString("userName");
-			var password = userInfo.getString("password");
+			var userName = userInfo.getString("userName"); //estrae il valore del campo "userName"
+			var password = userInfo.getString("password"); //estrae il valore del campo "password"
+			var reply = new JsonObject(); //crea un oggetto json di risposta al client
 
-			var reply = new JsonObject();
-			
-			/* 
-			 * we cannot block the event loop, so - since proxies are synchronous,
-			 * we need to delegate the call to a background thread
+			/*
+			dato che si sta utilizzando vertx, si utilizza un event loop (in realtà uno per ogni core),
+			e dato le operazioni richieste sono operazioni bloccanti (poiché coinvolgono chiamate http) è necessario delegare il compito di esecuzione a un worker thread
 			 */
-			this.vertx.executeBlocking(() -> {
-				return  accountService.registerUser(userName, password);	
-			}).onSuccess((ref) -> {
-				reply.put("result", "ok");
-				var loginPath = LOGIN_RESOURCE_PATH.replace(":accountId", userName);
-				reply.put("loginLink", loginPath);
-				reply.put("accountLink", ref.accountRefLink());				
-				sendReply(context.response(), reply);
-			}).onFailure((f) -> {
-				reply.put("result", "error");
-				reply.put("error", f.getMessage());
-				sendReply(context.response(), reply);
+			this.vertx.executeBlocking(() -> { //crea un worker thread
+				return accountService.registerUser(userName, password);	//registra un nuovo utente
+			}).onSuccess((ref) -> { //se l'operazione è completata con successo (il parametro è una stringa, non è un oggetto)
+				reply.put("result", "ok"); //popola l'oggetto con un informazion di successo
+				var loginPath = LOGIN_RESOURCE_PATH.replace(":accountId", userName); //costruisce il link per il login
+				reply.put("loginLink", loginPath); //popola l'oggetto con il link per il login
+				reply.put("accountLink", ref.accountRefLink());	//popola l'oggetto con il link alle informazioni dell'account
+				sendReply(context.response(), reply); //invia la risposta al client
+			}).onFailure((f) -> { //altrimenti
+				reply.put("result", "error"); //popola l'oggetto con un informazione di errore
+				reply.put("error", f.getMessage()); //popola l'oggetto con la specifica dell'errore
+				sendReply(context.response(), reply); //invia la risposta al client
 			});
 		});
 	}
 
-	/**
-	 * 
-	 * Get account info
-	 * 
-	 * @param context
-	 */
+    //recupera le informazioni di un account
 	protected void getAccountInfo(RoutingContext context) {
 		logger.log(Level.INFO, "get account info");
-		var userName = context.pathParam("accountId");
-		var reply = new JsonObject();
-		this.vertx.executeBlocking(() -> {
-			var acc = accountService.getAccountInfo(userName);	
-			return acc;
-		}).onSuccess((res) -> {
-			reply.put("result", "ok");
-			var accJson = new JsonObject();
-			accJson.put("userName", res.userName());
-			accJson.put("password", res.password());
-			accJson.put("whenCreated", res.whenCreated());
-			reply.put("accountInfo", accJson);			
-			sendReply(context.response(), reply);
-		}).onFailure((f) -> {
-			reply.put("result", "error");
-			reply.put("error", "account-not-present");
-			sendReply(context.response(), reply);
+		var userName = context.pathParam("accountId"); //estrae (dall'url) il valore del campo "userName"
+		var reply = new JsonObject(); //crea un oggetto json di risposta al client
+		this.vertx.executeBlocking(() -> { //crea un worker thread
+			var acc = accountService.getAccountInfo(userName); //recupera l'account associato a "userName"
+			return acc; //restituisce l'account
+		}).onSuccess((res) -> { //se l'operazione è completata con successo
+			reply.put("result", "ok"); //popola l'oggetto con un'informazione di successo
+			var accJson = new JsonObject(); //crea un oggetto json account per memorizzare le informazioni dell'account
+			accJson.put("userName", res.userName()); //popola l'oggetto account con il relativo username
+			accJson.put("password", res.password()); //popola l'oggetto account con la relativa password
+			accJson.put("whenCreated", res.whenCreated()); //popola l'oggetto account con la relativa data di creazione
+			reply.put("accountInfo", accJson); //popola l'oggetto di risposta con l'oggetto account
+			sendReply(context.response(), reply); //invia la risposta al client
+		}).onFailure((f) -> { //altrimenti
+			reply.put("result", "error"); //popola l'oggetto con un'informazione di errore
+			reply.put("error", "account-not-present"); //popola l'oggetto con la specifica dell'errore
+			sendReply(context.response(), reply); //invia la risposta al client
 		});
 	}
-	
-	/**
-	 * 
-	 * Login a user
-	 * 
-	 * It creates a User Session
-	 * 
-	 * @param context
-	 */
+
+    //logga un utente
 	protected void login(RoutingContext context) {
 		logger.log(Level.INFO, "Login request");
-		context.request().handler(buf -> {
-			JsonObject userInfo = buf.toJsonObject();
+		context.request().handler(buf -> { //prende il body del messaggio http inviato dal client
+			JsonObject userInfo = buf.toJsonObject(); //converte il body in un oggetto json
 			logger.log(Level.INFO, "Payload: " + userInfo);
-			var userName = userInfo.getString("userName");
-			var password = userInfo.getString("password");
-			var reply = new JsonObject();
-			this.vertx.executeBlocking(() -> {
-				var sessionId = lobbyService.login(userName, password);
-				return sessionId;
-			}).onSuccess((sessionId) -> {
-				reply.put("result", "ok");
-				var createPath = CREATE_GAME_RESOURCE_PATH.replace(":sessionId", sessionId);
-				var joinPath = JOIN_GAME_RESOURCE_PATH.replace(":sessionId", sessionId);
-				reply.put("createGameLink", createPath);
-				reply.put("joinGameLink", joinPath);
-				reply.put("sessionId", sessionId);
-				reply.put("sessionLink", USER_SESSIONS_RESOURCE_PATH + "/" + sessionId);				
-				sendReply(context.response(), reply);
-			}).onFailure((f) -> {
-				reply.put("result", "login-failed");
-				reply.put("error", f.getMessage());
-				sendReply(context.response(), reply);
+			var userName = userInfo.getString("userName"); //estrae il valore del campo "userName"
+			var password = userInfo.getString("password"); //estrae il valore del campo "password"
+			var reply = new JsonObject(); //crea un oggetto json di risposta al client
+			this.vertx.executeBlocking(() -> { //crea un worker thread
+				var sessionId = lobbyService.login(userName, password); //esegue il login dell'utente
+				return sessionId; //restituisce l'oggetto rappresentativo della sessione utente creata
+			}).onSuccess((sessionId) -> { //se l'operazione è completata con successo
+				reply.put("result", "ok"); //popola l'oggetto con un'informazione di successo
+				var createPath = CREATE_GAME_RESOURCE_PATH.replace(":sessionId", sessionId); //costruisce il link per la creazione della partita
+				var joinPath = JOIN_GAME_RESOURCE_PATH.replace(":sessionId", sessionId); //costruisce il link per entrare nella partita
+				reply.put("createGameLink", createPath); //popola l'oggetto con il link per la creazione della partita
+				reply.put("joinGameLink", joinPath); //popola l'oggetto con il link per il login
+				reply.put("sessionId", sessionId); //popola l'oggetto con l'id della sessione
+				reply.put("sessionLink", USER_SESSIONS_RESOURCE_PATH + "/" + sessionId); //popola l'oggetto con il link della sessione
+				sendReply(context.response(), reply); //invia la risposta al client
+			}).onFailure((f) -> { //altrimenti
+				reply.put("result", "login-failed"); //popola l'oggetto con un'informazione di errore
+				reply.put("error", f.getMessage()); //popola l'oggetto con la specifica dell'errore
+				sendReply(context.response(), reply); //invia la risposta al client
 			});			
 		});
 	}
-	
-	
-	/**
-	 * 
-	 * Create a New Game - by users logged in (with a UserSession)
-	 * 
-	 * @param context
-	 */
+
+    //crea una nuova partita
 	protected void createNewGame(RoutingContext context) {
 		logger.log(Level.INFO, "CreateNewGame request - " + context.currentRoute().getPath());
-		context.request().handler(buf -> { 
-			JsonObject userInfo = buf.toJsonObject();
-			var sessionId = context.pathParam("sessionId");
-			var gameId = userInfo.getString("gameId");
-			var reply = new JsonObject();
-			vertx.executeBlocking(() -> {
-				lobbyService.createNewGame(sessionId, gameId);
-				return null;
-			}).onSuccess((res) -> {
-				reply.put("result", "ok");
-				reply.put("gameLink", GAMES_RESOURCE_PATH + "/" + gameId);
-				var joinPath = JOIN_GAME_RESOURCE_PATH.replace(":sessionId", sessionId);
-				reply.put("joinGameLink", joinPath);
-				sendReply(context.response(), reply);
-			}).onFailure((f) -> {
-				reply.put("result", "error");
-				reply.put("error", "game-already-present");
-				sendReply(context.response(), reply);
-				sendError(context.response());
-			});			
+		context.request().handler(buf -> {  //prende il body del messaggio http inviato dal client
+			JsonObject userInfo = buf.toJsonObject(); //converte il body in un oggetto json
+			var sessionId = context.pathParam("sessionId"); //estrae (dall'url) il valore del campo "sessionId"
+			var gameId = userInfo.getString("gameId"); //estrae (dall'url) il valore del campo "gameId"
+			var reply = new JsonObject(); //crea un oggetto json di risposta al client
+			vertx.executeBlocking(() -> { //crea unu worker thread
+				lobbyService.createNewGame(sessionId, gameId); //crea una partita
+				return null; //termina
+			}).onSuccess((res) -> { //se l'operazione è completata con successo
+				reply.put("result", "ok"); //popola l'oggetto con un'informazione di successo
+				reply.put("gameLink", GAMES_RESOURCE_PATH + "/" + gameId); //popola l'oggetto con il link alla partita creata
+				var joinPath = JOIN_GAME_RESOURCE_PATH.replace(":sessionId", sessionId); //costruisce il link per entrare nella partita
+				reply.put("joinGameLink", joinPath); //popola l'oggetto con il link per entrare nella partita
+				sendReply(context.response(), reply); //invia la risposta al client
+			}).onFailure((f) -> { //altrimenti
+				reply.put("result", "error"); //popola l'oggetto con un'informazione di errore
+				reply.put("error", "game-already-present"); //popola l'oggetto con la specifica dell'errore
+				sendReply(context.response(), reply); //invia la risposta al client
+			});
 		});		
 	}
 
-	/**
-	 * 
-	 * Join a Game - by user logged in (with a UserSession)
-	 * 
-	 * It creates a PlayerSession
-	 * 
-	 * @param context
-	 */
+    //consente a un utente di unirsi a una partita
 	protected void joinGame(RoutingContext context) {
 		logger.log(Level.INFO, "JoinGame request - " + context.currentRoute().getPath());
-		context.request().handler(buf -> { 
-			JsonObject userInfo = buf.toJsonObject();
-			var sessionId = context.pathParam("sessionId");
-			var gameId = userInfo.getString("gameId");
-			var symbol = userInfo.getString("symbol");
-			var reply = new JsonObject();
-			vertx.executeBlocking(() -> {
-				var playerSessionId = lobbyService.joinGame(sessionId, gameId, symbol.equals("X") ? TTTSymbol.X : TTTSymbol.O);
-				return playerSessionId;
-			}).onSuccess((playerSessionId) -> {
-				reply.put("result", "ok");
-				reply.put("gameLink", GAMES_RESOURCE_PATH + "/" + gameId);
-				var joinPath = JOIN_GAME_RESOURCE_PATH.replace(":sessionId", playerSessionId);
-				reply.put("joinGameLink", joinPath);
-				sendReply(context.response(), reply);
-			}).onFailure((f) -> {
-				reply.put("result", "error");
-				reply.put("error", "game-already-present");
-				sendReply(context.response(), reply);
-				sendError(context.response());
-			});			
+		context.request().handler(buf -> {  //prende il body del messaggio http inviato dal client
+			JsonObject userInfo = buf.toJsonObject(); //converte il body in un oggetto json
+			var sessionId = context.pathParam("sessionId"); //estrae (dall'url) il valore del campo "sessionId"
+			var gameId = userInfo.getString("gameId"); //estrae il valore del campo "gameId"
+			var symbol = userInfo.getString("symbol"); //estrae il valore del campo "symbol"
+			var reply = new JsonObject(); //crea un oggetto json di risposta al client
+			vertx.executeBlocking(() -> { //crea un worker thread
+				var playerSessionId = lobbyService.joinGame(sessionId, gameId, symbol.equals("X") ? TTTSymbol.X : TTTSymbol.O); //esegue il join dell'utente nella partita
+				return playerSessionId; //restituisce l'oggetto rappresentativo della sessione giocatore creata
+			}).onSuccess((playerSessionId) -> { //se l'operazione è completata con successo
+				reply.put("result", "ok"); //popola l'oggetto con un'informazione di successo
+				reply.put("gameLink", GAMES_RESOURCE_PATH + "/" + gameId); //popola l'oggetto con il link alla partita
+				sendReply(context.response(), reply); //invia la risposta al client
+			}).onFailure((f) -> { //altrimenti
+				reply.put("result", "error"); //popola l'oggetto con un'informazione di errore
+				reply.put("error", "game-already-present"); //popola l'oggetto con la specifica dell'errore
+				sendReply(context.response(), reply); //invia la risposta al client
+				sendError(context.response()); //invia un errore al client
+			});
 		});		
-	}	
-	
-	/**
-	 * 
-	 * Get game info
-	 * 
-	 * @param context
-	 */
+	}
+
+    //recupera le informazioni di una partita
 	protected void getGameInfo(RoutingContext context) {
 		logger.log(Level.INFO, "get game info");
-		var gameId = context.pathParam("gameId");
-		var reply = new JsonObject();
-		this.vertx.executeBlocking(() -> {
-			var game = gameService.getGameInfo(gameId);
-			return game;
-		}).onSuccess((game) -> {
-			reply.put("result", "ok");
-			var gameJson = new JsonObject();
-			gameJson.put("gameId", game.gameId());
-			var st = game.gameState();
-			gameJson.put("gameState", st);
-			
-			if (st.equals("started")  || st.equals("finished")) {
-				var bs = game.boardState();
-				JsonArray array = new JsonArray();
-				for (var el: bs) {
-					array.add(el);
+		var gameId = context.pathParam("gameId"); //estrae (dall'url) il valore del campo "gameId"
+		var reply = new JsonObject(); //crea un oggetto json di risposta al client
+		this.vertx.executeBlocking(() -> { //crea un worker thread
+			var game = gameService.getGameInfo(gameId); //recupera la partita con id "gameId"
+			return game; //restituisce la partita creata
+		}).onSuccess((game) -> { //se l'operazione è completata con successo
+			reply.put("result", "ok"); //popola l'oggetto con un'informazione di successo
+			var gameJson = new JsonObject(); //crea un oggetto json partita per memorizzare le informazioni della partita
+			gameJson.put("gameId", game.gameId()); //popola l'oggetto partita con il relativo id
+			var st = game.gameState(); //recupera lo stato della partita
+			gameJson.put("gameState", st); //popola l'oggetto partita con il relativo stato
+			if (st.equals("started")  || st.equals("finished")) { //se la partita è iniziata o terminata
+				var bs = game.boardState(); //recupera lo stato della griglia
+				JsonArray array = new JsonArray(); //crea un arrray per lo stato della griglia
+				for (var el: bs) { //per ogni elemento della griglia
+					array.add(el); //lo aggiunge all'array
 				}
-				gameJson.put("boardState", array);
+				gameJson.put("boardState", array); //popola l'oggetto partita con l'array
 			}
-			if (st.equals("started")) {
-				gameJson.put("turn", game.currentTurn());
+			if (st.equals("started")) { //se la partita è iniziata
+				gameJson.put("turn", game.currentTurn()); //popola l'oggetto partita con il turno corrente
 			}			
-			reply.put("gameInfo", gameJson);			
-			sendReply(context.response(), reply);
-		}).onFailure((f) -> {
-			reply.put("result", "error");
-			reply.put("error", "game-not-present");
-			sendReply(context.response(), reply);
+			reply.put("gameInfo", gameJson); //popola l'oggetto di risposta con l'oggetto partita
+			sendReply(context.response(), reply); //invia la risposta al client
+		}).onFailure((f) -> { //altrimenti
+			reply.put("result", "error"); //popola l'oggetto con un'informazione di errore
+			reply.put("error", "game-not-present"); //popola l'oggetto con la specifica dell'errore
+			sendReply(context.response(), reply); //invia la risposta al client
 		});
 	}
-	
 
-	
-	/**
-	 * 
-	 * Make a move in a game - by players playing a game (with a PlayerSession)
-	 * 
-	 * @param context
-	 */
+
+    //esegue una mossa
 	protected void makeAMove(RoutingContext context) {
 		logger.log(Level.INFO, "MakeAMove request - " + context.currentRoute().getPath());
-		context.request().handler(buf -> {
-			var reply = new JsonObject();
+		context.request().handler(buf -> { //prende il body del messaggio http inviato dal client
+			var reply = new JsonObject(); //crea un oggetto json di risposta al client
 			try {
-				JsonObject moveInfo = buf.toJsonObject();
+				JsonObject moveInfo = buf.toJsonObject(); //converte il body in un oggetto json
 				logger.log(Level.INFO, "move info: " + moveInfo);
-				var gameId = context.pathParam("gameId");
-				var sessionId = context.pathParam("playerSessionId");
-				int x = Integer.parseInt(moveInfo.getString("x"));
-				int y = Integer.parseInt(moveInfo.getString("y"));
-				vertx.executeBlocking(() -> {
-					gameService.makeAMove(gameId, sessionId, x, y);
-					return null;
-				}).onSuccess((r) -> {
-					reply.put("result", "accepted");
-					var movePath = PLAYER_MOVE_RESOURCE_PATH.replace(":gameId", gameId).replace(":playerSessionId",
-							sessionId);
-					reply.put("moveLink", movePath);
-					reply.put("gameLink", GAMES_RESOURCE_PATH + "/" + gameId);
-					sendReply(context.response(), reply);
-				}).onFailure((f) -> {
-					reply.put("result", "error");
-					reply.put("error", "invalid-move");
-					sendReply(context.response(), reply);
+				var gameId = context.pathParam("gameId"); //estrae (dall'url) il valore del campo "gameId"
+				var sessionId = context.pathParam("playerSessionId"); //estrae il valore del campo "playerSessionId"
+				int x = Integer.parseInt(moveInfo.getString("x")); //estrae il valore del campo "x" e lo converte in un intero
+				int y = Integer.parseInt(moveInfo.getString("y")); //estrae il valore del campo "y" e lo converte in un intero
+				vertx.executeBlocking(() -> { //crea un worker thread
+					gameService.makeAMove(gameId, sessionId, x, y); //fa eseguire al giocatore una mossa
+					return null; //termina
+				}).onSuccess((r) -> { //se l'operazione è completata con successo
+					reply.put("result", "accepted"); //popola l'oggetto con un'informazione di successo
+					var movePath = PLAYER_MOVE_RESOURCE_PATH.replace(":gameId", gameId).replace(":playerSessionId", sessionId); //costruisce il link per eseguire una mossa nella partita
+					reply.put("moveLink", movePath); //popola l'oggetto con il link per eseguire la mossa
+					reply.put("gameLink", GAMES_RESOURCE_PATH + "/" + gameId); //popola l'oggetto con il link alla partita
+					sendReply(context.response(), reply); //invia la risposta al client
+				}).onFailure((f) -> { //altrimenti
+					reply.put("result", "error"); //popola l'oggetto con un'informazione di errore
+					reply.put("error", "invalid-move"); //popola l'oggetto con la specifica dell'errore
+					sendReply(context.response(), reply); //invia la risposta al client
 				});
 			} catch (Exception ex1) {
 				reply.put("result", "error");
 				reply.put("error", ex1.getMessage());
-				try {
-					sendReply(context.response(), reply);
-				} catch (Exception ex2) {
-					sendError(context.response());
-				}
+                sendReply(context.response(), reply);
+                sendError(context.response());
 			}
 		});
 	}
 
-	/**
-	 * 
-	 * Handling subscribers using web sockets
-	 * 
-	 * @param server
-	 * @param path
-	 */
-	protected void handleEventSubscription(HttpServer server, String path) {
-		server.webSocketHandler(webSocket -> {
+    //registra un websocket handler al server
+	protected void handleEventSubscription(HttpServer server) {
+		server.webSocketHandler(webSocket -> { //registra un handler per websocket
 			logger.log(Level.INFO, "New TTT subscription accepted.");
-
-			webSocket.textMessageHandler(openMsg -> {
+			webSocket.textMessageHandler(openMsg -> { //imposta un handler per i messaggi ricevuti dal client
 				logger.log(Level.INFO, "For game: " + openMsg);
-				JsonObject obj = new JsonObject(openMsg);
-				String playerSessionId = obj.getString("playerSessionId");
-				
-				/* create a channel to make the bridge */
-				
-				var eb = vertx.eventBus();
-				
-				gameService.createAnEventChannel(playerSessionId, vertx);
-
-				eb.consumer(playerSessionId, msg -> {
-					/* bridge between web sockets */
-					webSocket.writeTextMessage(msg.body().toString());
+				JsonObject obj = new JsonObject(openMsg); //converte il messaggio ricevuto dal client in un oggetto json
+				String playerSessionId = obj.getString("playerSessionId"); //estrae il valore del campo "playerSessionId"
+                EventBus eb = vertx.eventBus(); //recupera l'event bus di vertx
+				gameService.createAnEventChannel(playerSessionId, vertx); //crea un nuovo canale per ricevere gli eventi di gioco
+				eb.consumer(playerSessionId, msg -> { //iscrive l'event bus alla sessione giocatore e, ogni volta che arriva un messaggio all'event bus...
+					webSocket.writeTextMessage(msg.body().toString()); //lo invia al client tramite websocket
 				});
-						
 			});
 		});
 	}
-	
-	/* Aux methods */
-	
 
-	private void sendReply(HttpServerResponse response, JsonObject reply) {
-		response.putHeader("content-type", "application/json");
-		response.end(reply.toString());
-	}
-	
-	private void sendError(HttpServerResponse response) {
-		response.setStatusCode(500);
-		response.putHeader("content-type", "application/json");
-		response.end();
-	}
+    //invia la risposta al client
+    private void sendReply(HttpServerResponse response, JsonObject reply) {
+        response.putHeader("content-type", "application/json"); //imposta l’header del messaggio http come json
+        response.end(reply.toString()); //converte l’oggetto json in stringa, lo invia al client e chiude la risposta
+    }
 
-
+    //invia una risposta di errore al client
+    private void sendError(HttpServerResponse response) {
+        response.setStatusCode(500);  //imposta lo stato della risposta a 500 (errore)
+        response.putHeader("content-type", "application/json"); //imposta l’header del messaggio http come json
+        response.end(); //chiude la risposta
+    }
 }

@@ -4,18 +4,20 @@ import common.ddd.Repository;
 import common.exagonal.OutBoundPort;
 import ttt_game_service.domain.Game;
 
-/**
- * 
- * Games Repository
- * 
- */
+/*
+interfaccia che collega l'architettura (applicazione) al db delle partite
+contiene tutti i metodi che l'architettura utilizza per interagire con il db delle partite
+*/
 @OutBoundPort
 public interface GameRepository extends Repository {
 
-	void addGame(Game game);
-	
-	boolean isPresent(String gameId);
-	
-	Game getGame(String gameId);
+    //aggiunge una partita
+    void addGame(Game game);
+
+    //verifica se una partita è presente
+    boolean isPresent(String gameId);
+
+    //recupera una partita
+    Game getGame(String gameId);
 
 }

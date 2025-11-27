@@ -1,15 +1,18 @@
+#file docker compose
+#consente di mettere in relazione piu container, in modo che tutti condividano una stessa rete
 name: ttt-game-server
 
+#microservizi del sistema
 services:
-  account-service:
-    image: ttt-account-service
-    container_name: account-01
+  account-service: #nome del container
+    image: ttt-account-service #immagine docker per creare il container
+    container_name: account-01 #nome specifico del container (facoltativo)
     networks:
-      - ttt_game_server_network
+      - ttt_game_server_network  #rete docker a cui il container è collegato
     ports:
-      - "9000:9000"
+      - "9000:9000" #"porta su cui il microservizio è eseguito nel container:porta (della macchina su cui il microservizio è eseguito) per rendere raggiungibile il microservizio da client esterni"
     expose: 
-      - 9000
+      - 9000 #porta del microservizio visibile agli altri container
   lobby-service:
     image: ttt-lobby-service
     container_name: lobby-01
@@ -35,7 +38,9 @@ services:
       - ttt_game_server_network
     ports:
       - "8080:8080"
-    expose: 
+    expose:
       - 8080
+
+#rete condivisa
 networks:
   ttt_game_server_network:

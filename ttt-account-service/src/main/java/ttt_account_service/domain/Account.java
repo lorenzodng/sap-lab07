@@ -2,49 +2,40 @@ package ttt_account_service.domain;
 
 import common.ddd.Entity;
 
-/**
- * 
- * Modelling a user account. 
- * 
- */
+//account utente
 public class Account implements Entity<String> {
-	
-	private String userName; /* this is the id */
-	private String password;
-	private long whenCreated;;
-	
-	public Account(String userName, String password) {
-		this.userName = userName;
-		this.password = password;
-		this.whenCreated = System.currentTimeMillis();
-	}
 
-	public Account(String userName, String password, long whenCreated) {
-		this.userName = userName;
-		this.password = password;
-		this.whenCreated = whenCreated;
-	}
+    private String userName;
+    private String password;
+    private long whenCreated;;
 
-	
-	public String getUserName() {
-		return userName;
-	}
+    public Account(String userName, String password) {
+        this.userName = userName;
+        this.password = password;
+        this.whenCreated = System.currentTimeMillis();
+    }
 
-	public String getPassword() {
-		return password;
-	}
+    public Account(String userName, String password, long whenCreated) {
+        this.userName = userName;
+        this.password = password;
+        this.whenCreated = whenCreated;
+    }
 
-	public void updatePassword(String password) {
-		this.password = password;
-	}
-	
-	public long getWhenCreated() {
-		return this.whenCreated;
-	}
+    public String getUserName() {
+        return userName;
+    }
 
-	@Override
-	public String getId() {
-		return userName;
-	}
-	
+    public String getPassword() {
+        return password;
+    }
+
+    public long getWhenCreated() {
+        return this.whenCreated;
+    }
+
+    @Override
+    public String getId() {
+        return userName;
+    }
 }
+
