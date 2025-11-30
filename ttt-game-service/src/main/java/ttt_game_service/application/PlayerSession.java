@@ -23,11 +23,6 @@ public class PlayerSession implements GameObserver {
         game.makeAmove(userId, x, y);
     }
 
-    //recupera il simbolo del giocatore
-    public TTTSymbol getSymbol() {
-        return symbol;
-    }
-
     //recupera l'id della sessione
     public String getId() {
         return playerSessionId;
