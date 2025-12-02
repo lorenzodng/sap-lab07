@@ -50,6 +50,7 @@ public class APIGatewayController extends VerticleBase  {
 		this.lobbyService = lobbyService;
 	}
 
+    //avvia il server
 	public Future<?> start() {
 		logger.log(Level.INFO, "TTT Game Service initializing...");
 		HttpServer server = vertx.createHttpServer(); //crea un sever http
@@ -83,7 +84,6 @@ public class APIGatewayController extends VerticleBase  {
 			var userName = userInfo.getString("userName"); //estrae il valore del campo "userName"
 			var password = userInfo.getString("password"); //estrae il valore del campo "password"
 			var reply = new JsonObject(); //crea un oggetto json di risposta al client
-
 			/*
 			dato che si sta utilizzando vertx, si utilizza un event loop (in realtà uno per ogni core),
 			e dato le operazioni richieste sono operazioni bloccanti (poiché coinvolgono chiamate http) è necessario delegare il compito di esecuzione a un worker thread
