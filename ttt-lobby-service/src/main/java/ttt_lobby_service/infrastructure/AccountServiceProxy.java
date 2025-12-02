@@ -10,12 +10,8 @@ import io.vertx.core.json.JsonObject;
 import ttt_lobby_service.application.AccountService;
 import ttt_lobby_service.application.ServiceNotAvailableException;
 
-/*
-implementazione della porta di uscita che collega il sevizio lobby con il servizio degli account
-è chiamato "proxy" perchè svolge due ruoli:
-1) implementa una porta di uscita
-2) fa da intermediario tra due componenti/servizi del sistema
-*/
+
+//implementazione della porta di uscita che collega il sevizio lobby con il servizio degli account
 @Adapter
 public class AccountServiceProxy implements AccountService {
 

@@ -1,6 +1,6 @@
 package common.exagonal;
 
-//adapter (implementazione delle porte di ingresso e/o di uscita)
+//adapter
 public @interface Adapter {
 
 }
