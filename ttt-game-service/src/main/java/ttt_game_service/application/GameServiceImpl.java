@@ -17,7 +17,7 @@ public class GameServiceImpl implements GameService {
         playerSessionCount = 0;
     }
 
-    //recupera una sessione
+    //recupera una sessione giocatore
     @Override
     public PlayerSession getPlayerSession(String sessionId) {
         return playerSessionRepository.getSession(sessionId);

@@ -24,7 +24,7 @@ public class APIGatewayMain {
         AccountService accountService = new AccountServiceProxy(ACCOUNT_SERVICE_ADDRESS); //crea un'istanza del proxy degli account
 		GameService gameService = new GameServiceProxy(GAME_SERVICE_ADDRESS, GAME_SERVICE_WS_ADDRESS, GAME_SERVICE_WS_PORT); //crea un'istanza del proxy di gioco
 		var vertx = Vertx.vertx(); //crea un'istanza vertx per gestire le richieste http
-		var server = new APIGatewayController(accountService, lobbyService, gameService, BACKEND_PORT); //crea un'istanza del controller
+		var server = new APIGatewayController(accountService, lobbyService, gameService, BACKEND_PORT); //crea un'istanza del controller dell'api-gateway
 		vertx.deployVerticle(server); //avvia il server sulla porta specificata (esegue il metodo "start" del controller)
 	}
 }
